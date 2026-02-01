@@ -2,7 +2,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 /**
- * 將經緯度轉換為地址名稱
+ * 將經緯度轉換為地址名稱，深度解析 Google Maps 工具返回的元數據
  */
 export async function getAddressFromCoords(lat: number, lng: number): Promise<{ address: string; mapsUrl?: string }> {
   try {
@@ -13,10 +13,10 @@ export async function getAddressFromCoords(lat: number, lng: number): Promise<{ 
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // 使用 gemini-2.5-flash 以確保地圖功能支援
+    // 使用推薦的 2.5 系列模型
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `What is the address at latitude ${lat}, longitude ${lng}? Return only the Traditional Chinese address string, no extra text.`,
+      contents: `What is the exact address or place name at latitude ${lat}, longitude ${lng}? Respond with the Traditional Chinese address.`,
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {
@@ -32,26 +32,41 @@ export async function getAddressFromCoords(lat: number, lng: number): Promise<{ 
 
     const candidate = response.candidates?.[0];
     const groundingMetadata = candidate?.groundingMetadata;
+    const groundingChunks = groundingMetadata?.groundingChunks || [];
     
-    // 優先從地圖元數據提取 URL
-    const mapsUrl = groundingMetadata?.groundingChunks?.find(chunk => chunk.maps?.uri)?.maps?.uri;
-    
-    // 獲取地址文字
-    let address = response.text?.trim() || "";
-    
-    // 如果回傳空或者是座標，嘗試從 Grounding 獲取標題
-    if (!address || address.includes(",") || address.length < 5) {
-      const mapTitle = groundingMetadata?.groundingChunks?.find(chunk => chunk.maps?.title)?.maps?.title;
-      if (mapTitle) address = mapTitle;
+    // 優先從 Google Maps Grounding Chunks 中找尋標題與網址
+    let extractedTitle = "";
+    let extractedUrl = "";
+
+    for (const chunk of groundingChunks) {
+      if (chunk.maps) {
+        if (chunk.maps.title && !extractedTitle) extractedTitle = chunk.maps.title;
+        if (chunk.maps.uri && !extractedUrl) extractedUrl = chunk.maps.uri;
+      }
     }
 
-    if (!address) {
-      address = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    // 獲取模型生成的文字回覆
+    let textResponse = response.text?.trim() || "";
+
+    // 邏輯決策：如果模型回覆看起來只是在重複座標，則優先使用地圖工具抓到的標題
+    const isCoordinate = /\d+\.\d+/.test(textResponse) && textResponse.includes(",");
+    
+    let finalAddress = textResponse;
+    if (!finalAddress || isCoordinate || finalAddress.length < 5) {
+      finalAddress = extractedTitle || textResponse;
     }
 
-    return { address, mapsUrl };
+    // 如果最後還是什麼都沒有，回傳座標
+    if (!finalAddress || finalAddress.length < 3) {
+      finalAddress = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    }
+
+    return { 
+      address: finalAddress, 
+      mapsUrl: extractedUrl 
+    };
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.error("Gemini Geocoding Error:", error);
     return { address: `${lat.toFixed(5)}, ${lng.toFixed(5)}` };
   }
 }

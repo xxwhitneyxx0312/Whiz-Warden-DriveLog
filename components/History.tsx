@@ -61,37 +61,39 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
     setEditingTripId(null);
   };
 
-  const handleRefreshClick = (trip: Trip) => {
+  const handleRefreshClick = async (trip: Trip) => {
     if (isRefreshingAddr) return;
     
-    // 立即顯示處理中
+    // 1. 先顯示 UI 狀態
     setIsRefreshingAddr(true);
     
-    // 使用 setTimeout 確保 UI 渲染，然後再執行非同步請求
-    setTimeout(async () => {
-      try {
-        const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
-        const endRes = await getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude);
-        
-        onUpdateTrip({
-          ...trip,
-          startLocation: { 
-            ...trip.startLocation, 
-            address: startRes.address, 
-            mapsUrl: startRes.mapsUrl || trip.startLocation.mapsUrl 
-          },
-          endLocation: { 
-            ...trip.endLocation, 
-            address: endRes.address, 
-            mapsUrl: endRes.mapsUrl || trip.endLocation.mapsUrl 
-          }
-        });
-      } catch (e) {
-        console.error("Refresh error:", e);
-      } finally {
-        setIsRefreshingAddr(false);
-      }
-    }, 50);
+    try {
+      // 2. 異步獲取地址
+      const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
+      const endRes = await getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude);
+      
+      // 3. 更新行程資料
+      const updatedTrip = {
+        ...trip,
+        startLocation: { 
+          ...trip.startLocation, 
+          address: startRes.address, 
+          mapsUrl: startRes.mapsUrl || trip.startLocation.mapsUrl 
+        },
+        endLocation: { 
+          ...trip.endLocation, 
+          address: endRes.address, 
+          mapsUrl: endRes.mapsUrl || trip.endLocation.mapsUrl 
+        }
+      };
+
+      onUpdateTrip(updatedTrip);
+    } catch (e) {
+      console.error("Refresh action failed:", e);
+    } finally {
+      // 4. 無論成功失敗，都關閉處理狀態
+      setIsRefreshingAddr(false);
+    }
   };
 
   return (
