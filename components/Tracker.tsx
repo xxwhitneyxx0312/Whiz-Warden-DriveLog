@@ -24,8 +24,7 @@ interface ActiveTripState {
   status: AutoStatus;
   startLoc: TripLocation;
   currentDistance: number;
-  pendingStartTime: number;
-  elapsedSeconds: number;
+  startTimeStamp: number;
   isManualStart: boolean;
   lastUpdated: number;
 }
@@ -33,126 +32,127 @@ interface ActiveTripState {
 const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
   const [status, setStatus] = useState<AutoStatus>('IDLE');
   const [currentDistance, setCurrentDistance] = useState(0); 
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [displaySeconds, setDisplaySeconds] = useState(0);
   const [currentSpeed, setCurrentSpeed] = useState(0); 
   
   const [startLoc, setStartLoc] = useState<TripLocation | null>(null);
-  const [lastLoc, setLastLoc] = useState<TripLocation | null>(null);
+  const [lastTrackedLoc, setLastTrackedLoc] = useState<TripLocation | null>(null);
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [isManualStart, setIsManualStart] = useState(false);
   
-  const [pendingStartTime, setPendingStartTime] = useState<number | null>(null);
+  const [startTimeStamp, setStartTimeStamp] = useState<number | null>(null);
   const [tripType, setTripType] = useState<TripType>(TripType.BUSINESS);
   const [notes, setNotes] = useState('');
-  const [finalEndLoc, setFinalEndLoc] = useState<TripLocation | null>(null);
+  const [endLoc, setEndLoc] = useState<TripLocation | null>(null);
 
   const watchId = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
   const stopTimeoutRef = useRef<number | null>(null);
-  const wakeLockRef = useRef<any>(null);
-  const persistenceIntervalRef = useRef<number | null>(null);
 
-  const START_SPEED_THRESHOLD = 8;
-  const STOP_MINUTES_THRESHOLD = 2;
-  const MIN_TRIP_DISTANCE = 0.2;
-
+  // 1. 持久化處理
   useEffect(() => {
-    if (status !== 'IDLE' && startLoc && pendingStartTime) {
-      persistenceIntervalRef.current = window.setInterval(() => {
-        const state: ActiveTripState = {
-          status,
-          startLoc,
-          currentDistance,
-          pendingStartTime,
-          elapsedSeconds,
-          isManualStart,
-          lastUpdated: Date.now()
-        };
-        localStorage.setItem(ACTIVE_TRIP_KEY, JSON.stringify(state));
-      }, 5000);
+    if (status !== 'IDLE' && startLoc && startTimeStamp) {
+      const state: ActiveTripState = {
+        status,
+        startLoc,
+        currentDistance,
+        startTimeStamp,
+        isManualStart,
+        lastUpdated: Date.now()
+      };
+      localStorage.setItem(ACTIVE_TRIP_KEY, JSON.stringify(state));
     } else {
-      if (persistenceIntervalRef.current) clearInterval(persistenceIntervalRef.current);
       localStorage.removeItem(ACTIVE_TRIP_KEY);
     }
-    return () => {
-      if (persistenceIntervalRef.current) clearInterval(persistenceIntervalRef.current);
-    };
-  }, [status, startLoc, currentDistance, pendingStartTime, elapsedSeconds, isManualStart]);
+  }, [status, startLoc, currentDistance, startTimeStamp, isManualStart]);
 
+  // 2. 初始化與恢復
   useEffect(() => {
     const saved = localStorage.getItem(ACTIVE_TRIP_KEY);
     if (saved) {
       try {
         const state: ActiveTripState = JSON.parse(saved);
-        if (Date.now() - state.lastUpdated < 2 * 60 * 60 * 1000) {
+        if (Date.now() - state.lastUpdated < 4 * 60 * 60 * 1000) {
           setStatus(state.status);
           setStartLoc(state.startLoc);
           setCurrentDistance(state.currentDistance);
-          setPendingStartTime(state.pendingStartTime);
-          setElapsedSeconds(state.elapsedSeconds + Math.floor((Date.now() - state.lastUpdated) / 1000));
+          setStartTimeStamp(state.startTimeStamp);
           setIsManualStart(state.isManualStart);
-          
-          timerRef.current = window.setInterval(() => {
-            setElapsedSeconds((s) => s + 1);
-          }, 1000);
+          setLastTrackedLoc(state.startLoc);
         }
       } catch (e) {
         localStorage.removeItem(ACTIVE_TRIP_KEY);
       }
     }
-
     startMonitoring();
-    requestWakeLock();
-    
-    return () => {
-      stopMonitoring();
-    };
+    return () => stopMonitoring();
   }, []);
 
-  const requestWakeLock = async () => {
-    try {
-      if ('wakeLock' in navigator) {
-        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-      }
-    } catch (err) {}
-  };
+  // 3. 穩定計時器 (基於絕對時間)
+  useEffect(() => {
+    if (startTimeStamp && !showSaveForm) {
+      timerRef.current = window.setInterval(() => {
+        const diff = Math.floor((Date.now() - startTimeStamp) / 1000);
+        setDisplaySeconds(diff);
+      }, 1000);
+    } else {
+      if (timerRef.current) clearInterval(timerRef.current);
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [startTimeStamp, showSaveForm]);
 
   const startMonitoring = () => {
     if (!navigator.geolocation) return;
     watchId.current = navigator.geolocation.watchPosition(
       (pos) => {
         const { latitude, longitude, speed } = pos.coords;
-        const newLoc = { latitude, longitude };
         const speedKmh = (speed || 0) * 3.6;
         setCurrentSpeed(speedKmh);
+        const newLoc = { latitude, longitude };
 
-        if (status === 'IDLE') {
-          if (speedKmh > START_SPEED_THRESHOLD) {
-            handleStartTrip(newLoc);
-          }
-          setLastLoc(newLoc);
-        } else {
-          if (lastLoc) {
-            const d = calculateDistance(lastLoc.latitude, lastLoc.longitude, latitude, longitude);
-            if (d > 0.003) {
-              setCurrentDistance((curr) => curr + d);
-              setStatus('MOVING');
+        setStatus(prev => {
+          if (prev === 'IDLE') {
+            // 用戶要求：超過 5km/h 開始記錄
+            if (speedKmh > 5) {
+              handleStartTrip(newLoc);
+              return 'MOVING';
+            }
+            return 'IDLE';
+          } else {
+            // 處理里程累積
+            setLastTrackedLoc(last => {
+              if (last) {
+                const dist = calculateDistance(last.latitude, last.longitude, latitude, longitude);
+                // 過濾 GPS 抖動 (位移需大於 5 米才計算，防止紅燈停下時座標跳動增加里程)
+                if (dist > 0.005) {
+                  setCurrentDistance(curr => curr + dist);
+                  return newLoc;
+                }
+                return last;
+              }
+              return newLoc;
+            });
+
+            // 處理自動停止 (2 分鐘怠速)
+            if (speedKmh < 2) {
+              if (!stopTimeoutRef.current) {
+                stopTimeoutRef.current = window.setTimeout(() => {
+                  handleAutoStop(newLoc);
+                }, 2 * 60 * 1000); // 2 分鐘
+              }
+              return 'STOPPED_WAITING';
+            } else {
               if (stopTimeoutRef.current) {
                 clearTimeout(stopTimeoutRef.current);
                 stopTimeoutRef.current = null;
               }
-            } else if (status === 'MOVING') {
-              setStatus('STOPPED_WAITING');
-              stopTimeoutRef.current = window.setTimeout(() => {
-                handleAutoStop(newLoc);
-              }, STOP_MINUTES_THRESHOLD * 60 * 1000);
+              return 'MOVING';
             }
           }
-          setLastLoc(newLoc);
-        }
+        });
       },
-      (err) => console.error(err),
-      { enableHighAccuracy: true, maximumAge: 0 }
+      (err) => console.error("GPS Watch Error:", err),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
     );
   };
 
@@ -162,17 +162,19 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
     if (stopTimeoutRef.current !== null) clearTimeout(stopTimeoutRef.current);
   };
 
-  const handleStartTrip = async (loc: TripLocation) => {
-    setStatus('MOVING');
-    setPendingStartTime(Date.now());
+  const handleStartTrip = (loc: TripLocation) => {
+    const now = Date.now();
+    setStartTimeStamp(now);
     setCurrentDistance(0);
-    setElapsedSeconds(0);
-    const result = await getAddressFromCoords(loc.latitude, loc.longitude);
-    setStartLoc({ ...loc, address: result.address, mapsUrl: result.mapsUrl });
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = window.setInterval(() => {
-      setElapsedSeconds((s) => s + 1);
-    }, 1000);
+    setDisplaySeconds(0);
+    setStartLoc(loc);
+    setLastTrackedLoc(loc);
+    setStatus('MOVING');
+
+    // 異步獲取地址，不阻塞
+    getAddressFromCoords(loc.latitude, loc.longitude).then(res => {
+      setStartLoc(prev => prev ? { ...prev, address: res.address, mapsUrl: res.mapsUrl } : null);
+    });
   };
 
   const handleForceStart = () => {
@@ -183,60 +185,75 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
     });
   };
 
-  const handleAutoStop = async (loc: TripLocation) => {
-    if (currentDistance < MIN_TRIP_DISTANCE && !isManualStart) {
+  const handleAutoStop = (loc: TripLocation) => {
+    // 停車滿兩分鐘或手動按結束
+    if (currentDistance < 0.05 && !isManualStart) {
       resetTracker();
       return;
     }
-    if (timerRef.current !== null) clearInterval(timerRef.current);
-    const result = await getAddressFromCoords(loc.latitude, loc.longitude);
-    setFinalEndLoc({ ...loc, address: result.address, mapsUrl: result.mapsUrl });
+    setEndLoc(loc);
     setShowSaveForm(true);
+    getAddressFromCoords(loc.latitude, loc.longitude).then(res => {
+      setEndLoc(prev => prev ? { ...prev, address: res.address, mapsUrl: res.mapsUrl } : null);
+    });
   };
 
   const resetTracker = () => {
     setStatus('IDLE');
     setIsManualStart(false);
     setStartLoc(null);
+    setEndLoc(null);
     setCurrentDistance(0);
-    setElapsedSeconds(0);
-    if (timerRef.current) clearInterval(timerRef.current);
+    setDisplaySeconds(0);
+    setStartTimeStamp(null);
     localStorage.removeItem(ACTIVE_TRIP_KEY);
   };
 
   const handleSave = () => {
-    if (!pendingStartTime || !startLoc || !finalEndLoc) return;
+    if (!startTimeStamp || !startLoc) return;
+    
+    // 獲取最後一個位置作為終點 (如果 endLoc 還沒透過自動停止抓到)
+    const finalEndLoc = endLoc || lastTrackedLoc || startLoc;
+
     const newTrip: Trip = {
       id: generateId(),
-      startTime: pendingStartTime,
-      endTime: Date.now() - (status === 'STOPPED_WAITING' ? STOP_MINUTES_THRESHOLD * 60 * 1000 : 0),
-      startLocation: startLoc,
-      endLocation: finalEndLoc,
+      startTime: startTimeStamp,
+      endTime: Date.now(),
+      startLocation: {
+        ...startLoc,
+        address: startLoc.address || `座標: ${startLoc.latitude.toFixed(4)}, ${startLoc.longitude.toFixed(4)}`
+      },
+      endLocation: {
+        ...finalEndLoc,
+        address: finalEndLoc.address || `座標: ${finalEndLoc.latitude.toFixed(4)}, ${finalEndLoc.longitude.toFixed(4)}`
+      },
       distance: currentDistance,
       unit: preferredUnit,
       type: tripType,
       notes,
-      durationSeconds: elapsedSeconds - (status === 'STOPPED_WAITING' ? STOP_MINUTES_THRESHOLD * 60 : 0),
+      durationSeconds: displaySeconds,
     };
+    
     onSaveTrip(newTrip);
     setShowSaveForm(false);
     resetTracker();
   };
 
-  const displayDistance = preferredUnit === DistanceUnit.KM ? currentDistance : kmToMiles(currentDistance);
+  const displayDistanceValue = preferredUnit === DistanceUnit.KM ? currentDistance : kmToMiles(currentDistance);
 
   return (
     <div className="p-4 sm:p-6 max-w-lg mx-auto space-y-6">
+      {/* 頂部導引 */}
       <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-lg border border-slate-700 flex items-start gap-4">
-        <div className="bg-blue-500 p-2 rounded-lg">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A2 2 0 013 15.483V4a2 2 0 012.724-1.857L11 5l6-3 5.447 2.724A2 2 0 0123 6.517V18a2 2 0 01-2.724 1.857L15 17l-6 3z" />
+        <div className="bg-blue-500 p-2 rounded-lg shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
         </div>
         <div>
-          <h4 className="font-bold text-sm">配合 Waze 使用建議</h4>
-          <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
-            系統已開啟<b>「中斷自動恢復」</b>。若在導航時網頁被關閉，重新進入即可補回里程。
+          <h4 className="font-bold text-xs">加拿大行車優化模式</h4>
+          <p className="text-[10px] text-slate-400 mt-0.5 leading-relaxed">
+            系統已開啟「中斷自動恢復」。時速達 5km/h 自動記錄，停等紅燈不會結束，靜止滿 2 分鐘才會自動結算。
           </p>
         </div>
       </div>
@@ -244,25 +261,23 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
       {!showSaveForm ? (
         <div className="bg-white rounded-3xl p-8 shadow-xl border border-slate-100 flex flex-col items-center text-center">
           <div className="relative mb-8">
-            <div className={`absolute -inset-4 rounded-full opacity-20 ${
-              status === 'IDLE' ? 'bg-blue-400' : 'bg-green-400 animate-pulse'
+            <div className={`absolute -inset-4 rounded-full opacity-10 transition-all duration-1000 ${
+              status === 'IDLE' ? 'bg-blue-400 scale-90' : 'bg-green-400 animate-pulse scale-110'
             }`}></div>
-            <div className={`relative w-24 h-24 rounded-full flex items-center justify-center border-4 bg-white ${
-              status === 'IDLE' ? 'border-blue-500 shadow-inner' : 'border-green-500 shadow-lg shadow-green-100'
+            <div className={`relative w-28 h-28 rounded-full flex items-center justify-center border-4 transition-all duration-500 bg-white ${
+              status === 'IDLE' ? 'border-blue-100 shadow-inner' : 'border-green-500 shadow-xl shadow-green-100'
             }`}>
-              <span className="text-3xl">
-                {status === 'IDLE' ? '📡' : '🚗'}
-              </span>
+              <span className="text-4xl">{status === 'IDLE' ? '📡' : '🚗'}</span>
             </div>
           </div>
 
           <div className="mb-6">
-            <h3 className="text-slate-400 font-semibold mb-1 uppercase tracking-widest text-[10px]">
-              {status === 'IDLE' ? '等待出發偵測中' : '記錄中...'}
+            <h3 className="text-slate-400 font-bold mb-1 uppercase tracking-widest text-[10px]">
+              {status === 'IDLE' ? '等待出發' : '記錄中...'}
             </h3>
-            <div className="text-5xl font-black text-slate-900 tracking-tight">
-              {displayDistance.toFixed(2)}
-              <span className="text-xl ml-1 font-normal text-slate-500">
+            <div className="text-6xl font-black text-slate-900 tracking-tight">
+              {displayDistanceValue.toFixed(2)}
+              <span className="text-xl ml-1 font-normal text-slate-400">
                 {preferredUnit === DistanceUnit.KM ? 'km' : 'mi'}
               </span>
             </div>
@@ -271,77 +286,82 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
           <div className="grid grid-cols-2 gap-4 w-full mb-8">
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
               <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">目前時速</p>
-              <p className="text-xl font-black text-slate-700">{Math.round(currentSpeed)} <span className="text-xs font-normal">km/h</span></p>
+              <p className="text-xl font-black text-slate-700">{Math.round(currentSpeed)} <span className="text-xs font-normal text-slate-400">km/h</span></p>
             </div>
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
               <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">時長</p>
-              <p className="text-xl font-mono font-bold text-slate-700">{formatDuration(elapsedSeconds)}</p>
+              <p className="text-xl font-mono font-bold text-slate-700">{formatDuration(displaySeconds)}</p>
             </div>
           </div>
 
           {status === 'IDLE' ? (
             <button 
               onClick={handleForceStart}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-xl shadow-blue-100 transition-all active:scale-95 flex items-center justify-center gap-2"
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-2xl font-bold shadow-xl shadow-blue-100 transition-all active:scale-95"
             >
-              立即開始
+              立即開始行程
             </button>
           ) : (
-            <div className="w-full space-y-4">
-              <button 
-                onClick={() => handleAutoStop(lastLoc!)}
-                className="w-full py-4 text-red-500 font-bold border-2 border-red-50 text-sm rounded-2xl hover:bg-red-50 transition-colors"
-              >
-                結束並結算
-              </button>
-            </div>
+            <button 
+              onClick={() => handleAutoStop(lastTrackedLoc || startLoc!)}
+              className="w-full py-4 text-red-500 font-bold border-2 border-red-100 rounded-2xl hover:bg-red-50 transition-colors"
+            >
+              結束並結算
+            </button>
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-3xl p-8 shadow-xl border border-slate-100 space-y-6">
+        <div className="bg-white rounded-3xl p-8 shadow-xl border border-slate-100 space-y-6 animate-in fade-in zoom-in duration-300">
           <h2 className="text-2xl font-bold text-slate-900">行程摘要</h2>
           
           <div className="space-y-3">
-            <label className="block text-sm font-bold text-slate-700">用途</label>
-            <div className="flex gap-4">
-              <button
-                onClick={() => setTripType(TripType.BUSINESS)}
-                className={`flex-1 py-4 rounded-2xl border-2 transition-all font-bold text-sm ${
-                  tripType === TripType.BUSINESS ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-slate-100 text-slate-400'
-                }`}
-              >
-                💼 商業
-              </button>
-              <button
-                onClick={() => setTripType(TripType.PRIVATE)}
-                className={`flex-1 py-4 rounded-2xl border-2 transition-all font-bold text-sm ${
-                  tripType === TripType.PRIVATE ? 'border-green-500 bg-green-50 text-green-700' : 'border-slate-100 text-slate-400'
-                }`}
-              >
-                🏠 私人
-              </button>
+            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">用途</label>
+            <div className="flex gap-3">
+              {(Object.values(TripType)).map(type => (
+                <button
+                  key={type}
+                  onClick={() => setTripType(type)}
+                  className={`flex-1 py-3 rounded-xl border-2 transition-all font-bold text-sm ${
+                    tripType === type ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-100 text-slate-400'
+                  }`}
+                >
+                  {type === TripType.BUSINESS ? '💼 商業' : '🏠 私人'}
+                </button>
+              ))}
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="block text-sm font-bold text-slate-700">備註</label>
-            <textarea
+            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">備註</label>
+            <input
+              type="text"
+              placeholder="輸入地點或目的..."
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full p-4 rounded-2xl border border-slate-100 text-sm bg-slate-50/50"
+              className="w-full p-4 rounded-xl border border-slate-100 text-sm bg-slate-50 focus:bg-white outline-none transition-all"
             />
           </div>
 
-          <div className="bg-slate-900 rounded-2xl p-5 text-white space-y-3">
-            <div className="flex justify-between">
-              <p className="text-xl font-black">{displayDistance.toFixed(2)} {preferredUnit === DistanceUnit.KM ? 'km' : 'mi'}</p>
-              <p className="text-xl font-mono font-bold text-blue-400">{formatDuration(elapsedSeconds)}</p>
+          <div className="bg-slate-900 rounded-2xl p-5 text-white">
+            <div className="flex justify-between items-end mb-4">
+              <div className="text-2xl font-black">{displayDistanceValue.toFixed(2)} <span className="text-xs font-normal opacity-60">{preferredUnit === DistanceUnit.KM ? 'km' : 'mi'}</span></div>
+              <div className="text-xl font-mono text-blue-400">{formatDuration(displaySeconds)}</div>
+            </div>
+            <div className="space-y-2 border-t border-slate-800 pt-4 text-[11px] text-slate-400">
+               <div className="flex gap-2">
+                 <span className="text-blue-500 font-bold">起</span>
+                 <span className="truncate">{startLoc?.address || '獲取位置中...'}</span>
+               </div>
+               <div className="flex gap-2">
+                 <span className="text-red-500 font-bold">終</span>
+                 <span className="truncate">{endLoc?.address || lastTrackedLoc?.address || '計算中...'}</span>
+               </div>
             </div>
           </div>
 
           <div className="flex gap-4">
             <button onClick={() => { setShowSaveForm(false); resetTracker(); }} className="flex-1 text-slate-400 font-bold text-sm">捨棄</button>
-            <button onClick={handleSave} className="flex-[2] py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-xl">儲存行程</button>
+            <button onClick={handleSave} className="flex-[2] py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg active:scale-95 transition-all">儲存行程</button>
           </div>
         </div>
       )}
