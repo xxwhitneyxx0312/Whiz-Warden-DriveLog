@@ -62,8 +62,11 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
   };
 
   const refreshAddress = async (trip: Trip) => {
+    if (isRefreshingAddr) return;
     setIsRefreshingAddr(true);
+    
     try {
+      console.log("Refreshing addresses for trip:", trip.id);
       const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
       const endRes = await getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude);
       
@@ -72,8 +75,10 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
         startLocation: { ...trip.startLocation, address: startRes.address, mapsUrl: startRes.mapsUrl },
         endLocation: { ...trip.endLocation, address: endRes.address, mapsUrl: endRes.mapsUrl }
       });
+      console.log("Addresses updated successfully");
     } catch (e) {
-      alert("位址查詢失敗，請稍後再試。");
+      console.error("Address refresh failed:", e);
+      alert("位址查詢失敗，請檢查網路連線或 API Key。");
     } finally {
       setIsRefreshingAddr(false);
     }
@@ -132,8 +137,17 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
                   <input type="text" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="修改備註..." className="w-full p-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 ring-blue-100" />
                   
                   <div className="flex gap-2">
-                    <button onClick={() => refreshAddress(trip)} disabled={isRefreshingAddr} className="flex-1 text-[10px] font-bold bg-white text-slate-600 border border-slate-200 rounded-lg py-2 disabled:opacity-50">
-                      {isRefreshingAddr ? '查詢中...' : '📍 重新查詢地址'}
+                    <button 
+                      onClick={() => refreshAddress(trip)} 
+                      disabled={isRefreshingAddr} 
+                      className="flex-1 text-[10px] font-bold bg-white text-slate-600 border border-slate-200 rounded-lg py-3 disabled:bg-slate-50 disabled:text-slate-300 transition-all shadow-sm active:scale-95"
+                    >
+                      {isRefreshingAddr ? (
+                        <span className="flex items-center justify-center gap-2">
+                          <svg className="animate-spin h-3 w-3 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                          查詢中...
+                        </span>
+                      ) : '📍 重新查詢地址'}
                     </button>
                     <button onClick={cancelEditing} className="px-4 py-2 text-xs font-bold text-slate-400">取消</button>
                     <button onClick={() => saveEdit(trip)} className="px-6 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg">儲存</button>

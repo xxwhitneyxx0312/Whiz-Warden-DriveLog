@@ -6,9 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DriveLog - 行車記錄</title>
     <script>
-      // 墊片：防止前端因為找不到 process 而崩潰
-      window.process = { env: { API_KEY: "" } };
-      
       // 全局錯誤捕獲：如果發生白色畫面，在畫面上顯示紅框錯誤
       window.onerror = function(msg, url, lineNo, columnNo, error) {
         var errorBox = document.getElementById('error-display');
