@@ -48,52 +48,37 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
     setEditType(trip.type);
   };
 
-  const cancelEditing = () => {
-    setEditingTripId(null);
-  };
-
-  const saveEdit = (trip: Trip) => {
-    onUpdateTrip({
-      ...trip,
-      notes: editNotes,
-      type: editType
-    });
-    setEditingTripId(null);
-  };
-
-  const handleRefreshClick = async (trip: Trip) => {
+  const handleRefreshClick = (trip: Trip) => {
     if (isRefreshingAddr) return;
     
-    // 1. 先顯示 UI 狀態
+    // 強制進入處理狀態
     setIsRefreshingAddr(true);
     
-    try {
-      // 2. 異步獲取地址
-      const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
-      const endRes = await getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude);
-      
-      // 3. 更新行程資料
-      const updatedTrip = {
-        ...trip,
-        startLocation: { 
-          ...trip.startLocation, 
-          address: startRes.address, 
-          mapsUrl: startRes.mapsUrl || trip.startLocation.mapsUrl 
-        },
-        endLocation: { 
-          ...trip.endLocation, 
-          address: endRes.address, 
-          mapsUrl: endRes.mapsUrl || trip.endLocation.mapsUrl 
-        }
-      };
-
-      onUpdateTrip(updatedTrip);
-    } catch (e) {
-      console.error("Refresh action failed:", e);
-    } finally {
-      // 4. 無論成功失敗，都關閉處理狀態
-      setIsRefreshingAddr(false);
-    }
+    // 使用延遲確保 React 先完成「顯示處理中」的渲染，再開始耗時的 API 調用
+    setTimeout(async () => {
+      try {
+        const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
+        const endRes = await getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude);
+        
+        onUpdateTrip({
+          ...trip,
+          startLocation: { 
+            ...trip.startLocation, 
+            address: startRes.address, 
+            mapsUrl: startRes.mapsUrl || trip.startLocation.mapsUrl 
+          },
+          endLocation: { 
+            ...trip.endLocation, 
+            address: endRes.address, 
+            mapsUrl: endRes.mapsUrl || trip.endLocation.mapsUrl 
+          }
+        });
+      } catch (e) {
+        console.error("Refresh failed:", e);
+      } finally {
+        setIsRefreshingAddr(false);
+      }
+    }, 100);
   };
 
   return (
@@ -163,8 +148,11 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
                         </span>
                       ) : '📍 重新查詢地址'}
                     </button>
-                    <button onClick={cancelEditing} className="px-4 py-2 text-xs font-bold text-slate-400">取消</button>
-                    <button onClick={() => saveEdit(trip)} className="px-6 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg">儲存</button>
+                    <button onClick={() => setEditingTripId(null)} className="px-4 py-2 text-xs font-bold text-slate-400">取消</button>
+                    <button onClick={() => {
+                      onUpdateTrip({...trip, notes: editNotes, type: editType});
+                      setEditingTripId(null);
+                    }} className="px-6 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg">儲存</button>
                   </div>
                 </div>
               ) : (
