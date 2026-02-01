@@ -1,0 +1,7 @@
+{
+  "name": "Whiz Warden DriveLog - Professional Mileage Tracker",
+  "description": "A clean and efficient driving record application to track trips, calculate distances, and manage business vs. private mileage with easy CSV export.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
