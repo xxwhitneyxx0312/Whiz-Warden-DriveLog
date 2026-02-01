@@ -43,6 +43,12 @@ const App: React.FC = () => {
     setActiveTab('history');
   };
 
+  const handleUpdateTrip = (updatedTrip: Trip) => {
+    const updatedTrips = trips.map(t => t.id === updatedTrip.id ? updatedTrip : t);
+    setTrips(updatedTrips);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTrips));
+  };
+
   const handleDeleteTrip = (id: string) => {
     if (confirm("確定要刪除此行程嗎？")) {
       const updatedTrips = trips.filter(t => t.id !== id);
@@ -72,7 +78,12 @@ const App: React.FC = () => {
           <Tracker onSaveTrip={handleSaveTrip} preferredUnit={settings.preferredUnit} />
         )}
         {activeTab === 'history' && (
-          <History trips={trips} preferredUnit={settings.preferredUnit} onDeleteTrip={handleDeleteTrip} />
+          <History 
+            trips={trips} 
+            preferredUnit={settings.preferredUnit} 
+            onDeleteTrip={handleDeleteTrip} 
+            onUpdateTrip={handleUpdateTrip}
+          />
         )}
         {activeTab === 'summary' && (
           <Summary trips={trips} preferredUnit={settings.preferredUnit} />
