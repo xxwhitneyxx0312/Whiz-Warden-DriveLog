@@ -61,38 +61,37 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
     setEditingTripId(null);
   };
 
-  const refreshAddress = async (trip: Trip) => {
+  const handleRefreshClick = (trip: Trip) => {
     if (isRefreshingAddr) return;
     
+    // 立即顯示處理中
     setIsRefreshingAddr(true);
     
-    try {
-      // 分開獲取，避免其中一個失敗導致全部失敗
-      const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
-      const endRes = await getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude);
-      
-      const updatedTrip = {
-        ...trip,
-        startLocation: { 
-          ...trip.startLocation, 
-          address: startRes.address, 
-          mapsUrl: startRes.mapsUrl || trip.startLocation.mapsUrl 
-        },
-        endLocation: { 
-          ...trip.endLocation, 
-          address: endRes.address, 
-          mapsUrl: endRes.mapsUrl || trip.endLocation.mapsUrl 
-        }
-      };
-
-      onUpdateTrip(updatedTrip);
-      
-    } catch (e) {
-      console.error("Manual refresh failed:", e);
-      alert("位址更新失敗，請稍後重試。");
-    } finally {
-      setIsRefreshingAddr(false);
-    }
+    // 使用 setTimeout 確保 UI 渲染，然後再執行非同步請求
+    setTimeout(async () => {
+      try {
+        const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
+        const endRes = await getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude);
+        
+        onUpdateTrip({
+          ...trip,
+          startLocation: { 
+            ...trip.startLocation, 
+            address: startRes.address, 
+            mapsUrl: startRes.mapsUrl || trip.startLocation.mapsUrl 
+          },
+          endLocation: { 
+            ...trip.endLocation, 
+            address: endRes.address, 
+            mapsUrl: endRes.mapsUrl || trip.endLocation.mapsUrl 
+          }
+        });
+      } catch (e) {
+        console.error("Refresh error:", e);
+      } finally {
+        setIsRefreshingAddr(false);
+      }
+    }, 50);
   };
 
   return (
@@ -148,7 +147,7 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
                   <div className="flex gap-2">
                     <button 
                       type="button"
-                      onClick={() => refreshAddress(trip)} 
+                      onClick={() => handleRefreshClick(trip)} 
                       disabled={isRefreshingAddr} 
                       className={`flex-1 text-[10px] font-bold rounded-lg py-3 transition-all shadow-sm border ${isRefreshingAddr ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white text-slate-700 border-slate-200 active:bg-slate-50'}`}
                     >
