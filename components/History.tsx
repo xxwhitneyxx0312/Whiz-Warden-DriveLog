@@ -64,32 +64,34 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
   const refreshAddress = async (trip: Trip) => {
     if (isRefreshingAddr) return;
     
-    // 強制 UI 更新加載狀態
     setIsRefreshingAddr(true);
     
     try {
-      console.log("Starting address refresh...");
+      // 分開獲取，避免其中一個失敗導致全部失敗
+      const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
+      const endRes = await getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude);
       
-      // 獲取起點與終點地址
-      const [startRes, endRes] = await Promise.all([
-        getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude),
-        getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude)
-      ]);
-      
-      console.log("Refresh success:", { startRes, endRes });
-
-      onUpdateTrip({
+      const updatedTrip = {
         ...trip,
-        startLocation: { ...trip.startLocation, address: startRes.address, mapsUrl: startRes.mapsUrl },
-        endLocation: { ...trip.endLocation, address: endRes.address, mapsUrl: endRes.mapsUrl }
-      });
+        startLocation: { 
+          ...trip.startLocation, 
+          address: startRes.address, 
+          mapsUrl: startRes.mapsUrl || trip.startLocation.mapsUrl 
+        },
+        endLocation: { 
+          ...trip.endLocation, 
+          address: endRes.address, 
+          mapsUrl: endRes.mapsUrl || trip.endLocation.mapsUrl 
+        }
+      };
+
+      onUpdateTrip(updatedTrip);
       
     } catch (e) {
-      console.error("Refresh failed in History component:", e);
-      alert("查詢發生錯誤，請稍後再試。");
+      console.error("Manual refresh failed:", e);
+      alert("位址更新失敗，請稍後重試。");
     } finally {
-      // 延遲一小段時間讓用戶能看到完成狀態
-      setTimeout(() => setIsRefreshingAddr(false), 300);
+      setIsRefreshingAddr(false);
     }
   };
 
@@ -116,7 +118,6 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
             <div key={trip.id} className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 relative overflow-hidden">
               <div className={`absolute top-0 left-0 w-1.5 h-full ${trip.type === TripType.BUSINESS ? 'bg-blue-500' : 'bg-green-500'}`}></div>
               
-              {/* Header */}
               <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-2">
                   <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${trip.type === TripType.BUSINESS ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>{trip.type}</span>
@@ -136,7 +137,6 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
                 </div>
               </div>
 
-              {/* Edit Mode View */}
               {editingTripId === trip.id ? (
                 <div className="space-y-4 bg-slate-50 p-4 rounded-2xl">
                   <div className="grid grid-cols-2 gap-3">
@@ -148,12 +148,9 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
                   <div className="flex gap-2">
                     <button 
                       type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        refreshAddress(trip);
-                      }} 
+                      onClick={() => refreshAddress(trip)} 
                       disabled={isRefreshingAddr} 
-                      className={`flex-1 text-[10px] font-bold rounded-lg py-3 transition-all shadow-sm border ${isRefreshingAddr ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-white text-slate-700 border-slate-200 active:bg-slate-50'}`}
+                      className={`flex-1 text-[10px] font-bold rounded-lg py-3 transition-all shadow-sm border ${isRefreshingAddr ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white text-slate-700 border-slate-200 active:bg-slate-50'}`}
                     >
                       {isRefreshingAddr ? (
                         <span className="flex items-center justify-center gap-2">
@@ -161,7 +158,7 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
-                          處理中...
+                          地址查詢中...
                         </span>
                       ) : '📍 重新查詢地址'}
                     </button>
@@ -170,7 +167,6 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
                   </div>
                 </div>
               ) : (
-                /* Normal View */
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div onClick={() => openInMaps(trip.startLocation.latitude, trip.startLocation.longitude, trip.startLocation.mapsUrl)} className="flex items-start gap-3 cursor-pointer group">
