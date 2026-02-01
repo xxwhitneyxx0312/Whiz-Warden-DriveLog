@@ -63,24 +63,33 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
 
   const refreshAddress = async (trip: Trip) => {
     if (isRefreshingAddr) return;
+    
+    // 強制 UI 更新加載狀態
     setIsRefreshingAddr(true);
     
     try {
-      console.log("Refreshing addresses for trip:", trip.id);
-      const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
-      const endRes = await getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude);
+      console.log("Starting address refresh...");
       
+      // 獲取起點與終點地址
+      const [startRes, endRes] = await Promise.all([
+        getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude),
+        getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude)
+      ]);
+      
+      console.log("Refresh success:", { startRes, endRes });
+
       onUpdateTrip({
         ...trip,
         startLocation: { ...trip.startLocation, address: startRes.address, mapsUrl: startRes.mapsUrl },
         endLocation: { ...trip.endLocation, address: endRes.address, mapsUrl: endRes.mapsUrl }
       });
-      console.log("Addresses updated successfully");
+      
     } catch (e) {
-      console.error("Address refresh failed:", e);
-      alert("位址查詢失敗，請檢查網路連線或 API Key。");
+      console.error("Refresh failed in History component:", e);
+      alert("查詢發生錯誤，請稍後再試。");
     } finally {
-      setIsRefreshingAddr(false);
+      // 延遲一小段時間讓用戶能看到完成狀態
+      setTimeout(() => setIsRefreshingAddr(false), 300);
     }
   };
 
@@ -129,7 +138,7 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
 
               {/* Edit Mode View */}
               {editingTripId === trip.id ? (
-                <div className="space-y-4 bg-slate-50 p-4 rounded-2xl animate-in fade-in duration-200">
+                <div className="space-y-4 bg-slate-50 p-4 rounded-2xl">
                   <div className="grid grid-cols-2 gap-3">
                     <button onClick={() => setEditType(TripType.BUSINESS)} className={`py-2 rounded-xl text-xs font-bold border-2 transition-all ${editType === TripType.BUSINESS ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-slate-200 text-slate-400 bg-white'}`}>💼 商業</button>
                     <button onClick={() => setEditType(TripType.PRIVATE)} className={`py-2 rounded-xl text-xs font-bold border-2 transition-all ${editType === TripType.PRIVATE ? 'border-green-600 bg-green-50 text-green-600' : 'border-slate-200 text-slate-400 bg-white'}`}>🏠 私人</button>
@@ -138,14 +147,21 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
                   
                   <div className="flex gap-2">
                     <button 
-                      onClick={() => refreshAddress(trip)} 
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        refreshAddress(trip);
+                      }} 
                       disabled={isRefreshingAddr} 
-                      className="flex-1 text-[10px] font-bold bg-white text-slate-600 border border-slate-200 rounded-lg py-3 disabled:bg-slate-50 disabled:text-slate-300 transition-all shadow-sm active:scale-95"
+                      className={`flex-1 text-[10px] font-bold rounded-lg py-3 transition-all shadow-sm border ${isRefreshingAddr ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-white text-slate-700 border-slate-200 active:bg-slate-50'}`}
                     >
                       {isRefreshingAddr ? (
                         <span className="flex items-center justify-center gap-2">
-                          <svg className="animate-spin h-3 w-3 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                          查詢中...
+                          <svg className="animate-spin h-3 w-3 text-blue-500" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          處理中...
                         </span>
                       ) : '📍 重新查詢地址'}
                     </button>
