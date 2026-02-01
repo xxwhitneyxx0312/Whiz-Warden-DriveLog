@@ -1,8 +1,8 @@
 
 import React, { useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend } from 'recharts';
-import { Trip, DistanceUnit, TripType } from '../types';
-import { kmToMiles, formatDuration } from '../utils/geo';
+import { Trip, DistanceUnit, TripType } from '../types.ts';
+import { kmToMiles, formatDuration } from '../utils/geo.ts';
 
 interface SummaryProps {
   trips: Trip[];
@@ -79,7 +79,7 @@ const Summary: React.FC<SummaryProps> = ({ trips, preferredUnit }) => {
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-8">
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-8 pb-20">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h2 className="text-3xl font-bold text-slate-900">數據摘要</h2>

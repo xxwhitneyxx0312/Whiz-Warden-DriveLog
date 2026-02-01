@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import Tracker from './components/Tracker';
-import History from './components/History';
-import Summary from './components/Summary';
-import Settings from './components/Settings';
-import { Trip, DistanceUnit, UserSettings } from './types';
+import Tracker from './components/Tracker.tsx';
+import History from './components/History.tsx';
+import Summary from './components/Summary.tsx';
+import Settings from './components/Settings.tsx';
+import { Trip, DistanceUnit, UserSettings } from './types.ts';
 
 const STORAGE_KEY = 'drive_log_trips';
 const SETTINGS_KEY = 'drive_log_settings';
@@ -16,21 +16,31 @@ const App: React.FC = () => {
   });
   const [activeTab, setActiveTab] = useState<'track' | 'history' | 'summary' | 'settings'>('track');
 
-  // Load data on mount
   useEffect(() => {
     const savedTrips = localStorage.getItem(STORAGE_KEY);
     const savedSettings = localStorage.getItem(SETTINGS_KEY);
     
-    if (savedTrips) setTrips(JSON.parse(savedTrips));
-    if (savedSettings) setSettings(JSON.parse(savedSettings));
+    if (savedTrips) {
+      try {
+        setTrips(JSON.parse(savedTrips));
+      } catch (e) {
+        console.error("Failed to parse trips", e);
+      }
+    }
+    if (savedSettings) {
+      try {
+        setSettings(JSON.parse(savedSettings));
+      } catch (e) {
+        console.error("Failed to parse settings", e);
+      }
+    }
   }, []);
 
-  // Save trips to local storage
   const handleSaveTrip = (trip: Trip) => {
     const updatedTrips = [trip, ...trips];
     setTrips(updatedTrips);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedTrips));
-    setActiveTab('history'); // Jump to history after saving
+    setActiveTab('history');
   };
 
   const handleDeleteTrip = (id: string) => {
@@ -72,8 +82,7 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* Navigation Bar */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-slate-100 flex justify-around items-center p-2 pb-6">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-slate-100 flex justify-around items-center p-2 pb-6 shadow-2xl">
         <NavItem 
           active={activeTab === 'track'} 
           onClick={() => setActiveTab('track')}

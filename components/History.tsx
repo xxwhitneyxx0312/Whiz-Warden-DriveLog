@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Trip, DistanceUnit, TripType } from '../types';
-import { formatDuration, kmToMiles } from '../utils/geo';
+import { Trip, DistanceUnit, TripType } from '../types.ts';
+import { formatDuration, kmToMiles } from '../utils/geo.ts';
 
 interface HistoryProps {
   trips: Trip[];
@@ -36,7 +36,7 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip })
   };
 
   return (
-    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 pb-20">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-2xl font-bold text-slate-900">行程記錄</h2>
         <div className="flex bg-slate-100 p-1 rounded-lg self-start">
@@ -48,7 +48,7 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip })
                 viewMode === mode ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500'
               }`}
             >
-              {mode === 'day' ? '日' : mode === 'month' ? '月' : 'year'}
+              {mode === 'day' ? '日' : mode === 'month' ? '月' : '年'}
             </button>
           ))}
         </div>
@@ -60,7 +60,7 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip })
         onChange={(e) => {
           if (viewMode === 'year') {
             const date = new Date(selectedDate);
-            date.setFullYear(parseInt(e.target.value));
+            date.setFullYear(parseInt(e.target.value) || new Date().getFullYear());
             setSelectedDate(date.toISOString().split('T')[0]);
           } else {
             setSelectedDate(e.target.value + (viewMode === 'month' ? '-01' : ''));
@@ -85,12 +85,12 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip })
                     {trip.type}
                   </span>
                   <span className="text-sm text-slate-400">
-                    {new Date(trip.startTime).toLocaleDateString()} {new Date(trip.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {new Date(trip.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
                 <button 
                   onClick={() => onDeleteTrip(trip.id)}
-                  className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                  className="text-slate-300 hover:text-red-500 transition-colors sm:opacity-0 group-hover:opacity-100"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
@@ -104,32 +104,16 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip })
                     <div className="w-2 h-2 rounded-full bg-blue-500 flex-shrink-0"></div>
                     <div className="flex items-center gap-1 min-w-0">
                       <p className="text-sm text-slate-600 font-medium truncate">{trip.startLocation.address}</p>
-                      {trip.startLocation.mapsUrl && (
-                        <a href={trip.startLocation.mapsUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                            <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                          </svg>
-                        </a>
-                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></div>
                     <div className="flex items-center gap-1 min-w-0">
                       <p className="text-sm text-slate-600 font-medium truncate">{trip.endLocation.address}</p>
-                      {trip.endLocation.mapsUrl && (
-                        <a href={trip.endLocation.mapsUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
-                            <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                            <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-                          </svg>
-                        </a>
-                      )}
                     </div>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex flex-col items-end">
                   <p className="text-2xl font-bold text-slate-800">
                     {getDisplayDistance(trip.distance).toFixed(1)} 
                     <span className="text-sm font-normal text-slate-400 ml-1">

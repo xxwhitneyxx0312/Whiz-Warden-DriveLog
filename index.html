@@ -3,8 +3,25 @@
 <html lang="zh-HK">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>DriveLog - 行車記錄</title>
+    <script>
+      // 墊片：防止前端因為找不到 process 而崩潰
+      window.process = { env: { API_KEY: "" } };
+      
+      // 全局錯誤捕獲：如果發生白色畫面，在畫面上顯示紅框錯誤
+      window.onerror = function(msg, url, lineNo, columnNo, error) {
+        var errorBox = document.getElementById('error-display');
+        if (!errorBox) {
+          errorBox = document.createElement('div');
+          errorBox.id = 'error-display';
+          errorBox.style.cssText = 'position:fixed;top:0;left:0;width:100%;background:#fee2e2;color:#991b1b;padding:20px;z-index:9999;font-size:12px;word-break:break-all;border-bottom:2px solid #ef4444;';
+          document.body.appendChild(errorBox);
+        }
+        errorBox.innerHTML = '<strong>App 啟動錯誤:</strong><br>' + msg + '<br><small>' + url + ':' + lineNo + '</small>';
+        return false;
+      };
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,21 +30,37 @@
         body {
             font-family: 'Inter', sans-serif;
             background-color: #f8fafc;
+            -webkit-tap-highlight-color: transparent;
+        }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+        }
+        #root {
+            height: 100%;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
     </style>
 <script type="importmap">
 {
   "imports": {
-    "@google/genai": "https://esm.sh/@google/genai@^1.39.0",
-    "react/": "https://esm.sh/react@^19.2.4/",
-    "react": "https://esm.sh/react@^19.2.4",
+    "@google/genai": "https://esm.sh/@google/genai@1.39.0",
+    "react": "https://esm.sh/react@19.0.0",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "recharts": "https://esm.sh/recharts@2.15.0",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "recharts": "https://esm.sh/recharts@^3.7.0"
+    "react/": "https://esm.sh/react@^19.2.4/"
   }
 }
 </script>
 </head>
 <body>
     <div id="root"></div>
+    <!-- 必須顯式引入 index.tsx，且必須是 type="module" -->
+    <script type="module" src="index.tsx"></script>
 </body>
 </html>
