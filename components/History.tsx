@@ -48,35 +48,33 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
     setEditType(trip.type);
   };
 
-  const handleRefreshClick = (trip: Trip) => {
+  const handleRefreshClick = async (trip: Trip) => {
     if (isRefreshingAddr) return;
     setIsRefreshingAddr(true);
     
-    // Force immediate UI update for loading state
-    setTimeout(async () => {
-      try {
-        const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
-        const endRes = await getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude);
-        
-        onUpdateTrip({
-          ...trip,
-          startLocation: { 
-            ...trip.startLocation, 
-            address: startRes.address, 
-            mapsUrl: startRes.mapsUrl || trip.startLocation.mapsUrl 
-          },
-          endLocation: { 
-            ...trip.endLocation, 
-            address: endRes.address, 
-            mapsUrl: endRes.mapsUrl || trip.endLocation.mapsUrl 
-          }
-        });
-      } catch (e) {
-        console.error("Refresh failed:", e);
-      } finally {
-        setIsRefreshingAddr(false);
-      }
-    }, 100);
+    try {
+      // Fetch both addresses
+      const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
+      const endRes = await getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude);
+      
+      onUpdateTrip({
+        ...trip,
+        startLocation: { 
+          ...trip.startLocation, 
+          address: startRes.address, 
+          mapsUrl: startRes.mapsUrl || trip.startLocation.mapsUrl 
+        },
+        endLocation: { 
+          ...trip.endLocation, 
+          address: endRes.address, 
+          mapsUrl: endRes.mapsUrl || trip.endLocation.mapsUrl 
+        }
+      });
+    } catch (e) {
+      console.error("Refresh failed:", e);
+    } finally {
+      setIsRefreshingAddr(false);
+    }
   };
 
   const formatTime = (ts: number) => {
@@ -147,7 +145,7 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
                       disabled={isRefreshingAddr} 
                       className={`flex-1 text-[10px] font-bold rounded-lg py-3 transition-all shadow-sm border ${isRefreshingAddr ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 active:bg-slate-50'}`}
                     >
-                      {isRefreshingAddr ? 'Refreshing Address...' : '📍 Refresh Address'}
+                      {isRefreshingAddr ? 'Refreshing...' : '📍 Refresh Address'}
                     </button>
                     <button onClick={() => setEditingTripId(null)} className="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button>
                     <button onClick={() => {
@@ -161,16 +159,16 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
                   <div className="space-y-4">
                     <div onClick={() => openInMaps(trip.startLocation.latitude, trip.startLocation.longitude, trip.startLocation.mapsUrl)} className="flex items-start gap-3 cursor-pointer group">
                       <div className="mt-1 w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 ring-4 ring-blue-50 dark:ring-blue-900/20 group-hover:ring-blue-100 transition-all"></div>
-                      <div className="overflow-hidden">
+                      <div className="flex-grow">
                         <p className="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase mb-0.5">Start</p>
-                        <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed group-hover:text-blue-600 transition-colors truncate">{trip.startLocation.address || 'Address pending...'}</p>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed group-hover:text-blue-600 transition-colors">{trip.startLocation.address || 'Fetching English address...'}</p>
                       </div>
                     </div>
                     <div onClick={() => openInMaps(trip.endLocation.latitude, trip.endLocation.longitude, trip.endLocation.mapsUrl)} className="flex items-start gap-3 cursor-pointer group">
                       <div className="mt-1 w-2.5 h-2.5 rounded-full bg-red-500 shrink-0 ring-4 ring-red-50 dark:ring-red-900/20 group-hover:ring-red-100 transition-all"></div>
-                      <div className="overflow-hidden">
+                      <div className="flex-grow">
                         <p className="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase mb-0.5">End</p>
-                        <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed group-hover:text-red-600 transition-colors truncate">{trip.endLocation.address || 'Address pending...'}</p>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed group-hover:text-red-600 transition-colors">{trip.endLocation.address || 'Fetching English address...'}</p>
                       </div>
                     </div>
                   </div>
