@@ -2,7 +2,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 /**
- * 將經緯度轉換為地址名稱，深度解析 Google Maps 工具返回的元數據
+ * Converts coordinates to an English address using Gemini + Google Maps grounding.
  */
 export async function getAddressFromCoords(lat: number, lng: number): Promise<{ address: string; mapsUrl?: string }> {
   try {
@@ -13,10 +13,10 @@ export async function getAddressFromCoords(lat: number, lng: number): Promise<{ 
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // 使用 gemini-2.5-flash，這是目前 Maps 工具支援最完整的模型
+    // Explicitly request English address for better consistency and developer preference
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `You are a professional geocoder. What is the precise Traditional Chinese address at latitude ${lat}, longitude ${lng}? Use Google Maps to find the building name or street address. Output ONLY the address string.`,
+      contents: `You are a professional geocoder. What is the precise English address at latitude ${lat}, longitude ${lng}? Use Google Maps to find the building name or street address. Output ONLY the address string in English.`,
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {
@@ -34,23 +34,23 @@ export async function getAddressFromCoords(lat: number, lng: number): Promise<{ 
     const groundingMetadata = candidate?.groundingMetadata;
     const groundingChunks = groundingMetadata?.groundingChunks || [];
     
-    // 1. 深度遍歷 Grounding Chunks 尋找資料
+    // 1. Extract info from Grounding Chunks (Direct Maps data)
     let extractedTitle = "";
     let extractedUrl = "";
 
     for (const chunk of groundingChunks) {
       if (chunk.maps) {
-        // 優先抓取 title 或 address 相關欄位
+        // Maps tool often returns the most accurate name/address in the title field
         if (chunk.maps.title && !extractedTitle) extractedTitle = chunk.maps.title;
         if (chunk.maps.uri && !extractedUrl) extractedUrl = chunk.maps.uri;
       }
     }
 
-    // 2. 獲取文字回覆
+    // 2. Get the text response from the model
     let textResponse = response.text?.trim().replace(/[\*\#\`]/g, "") || "";
 
-    // 3. 邏輯決策
-    // 如果 textResponse 包含座標字樣，說明模型沒能生成有效地址，則改用 Grounding Title
+    // 3. Logic Decision
+    // If textResponse is just coordinates or empty, use the Grounding Title which is more reliable
     const isUselessText = !textResponse || textResponse.length < 5 || /\d+\.\d+/.test(textResponse);
     
     let finalAddress = textResponse;
@@ -58,9 +58,9 @@ export async function getAddressFromCoords(lat: number, lng: number): Promise<{ 
       finalAddress = extractedTitle;
     }
 
-    // 4. 最後的保底
+    // 4. Final Fallback
     if (!finalAddress || finalAddress.length < 3) {
-      finalAddress = `經緯度: ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+      finalAddress = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     }
 
     return { 

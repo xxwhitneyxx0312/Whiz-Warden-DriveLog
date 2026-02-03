@@ -94,7 +94,7 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
 
         setStatus(prev => {
           if (prev === 'IDLE') {
-            if (speedKmh > 5) { // 5km/h 啟動
+            if (speedKmh > 5) {
               handleStartTrip(newLoc);
               return 'MOVING';
             }
@@ -103,7 +103,6 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
             setLastTrackedLoc(last => {
               if (last) {
                 const dist = calculateDistance(last.latitude, last.longitude, latitude, longitude);
-                // 調整為 1 米 (0.001km) 靈敏度，確保即使慢速前進也能累積里程
                 if (dist > 0.001) { 
                   setCurrentDistance(curr => curr + dist);
                   return newLoc;
@@ -113,11 +112,11 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
               return newLoc;
             });
 
-            if (speedKmh < 2) { // 2km/h 以下視為停止
+            if (speedKmh < 2) {
               if (!stopTimeoutRef.current) {
                 stopTimeoutRef.current = window.setTimeout(() => {
                   handleAutoStop(newLoc);
-                }, 120 * 1000); // 2 分鐘 (加拿大 Stop sign/紅燈保護)
+                }, 120 * 1000);
               }
               return 'STOPPED_WAITING';
             } else {
@@ -153,8 +152,7 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
 
     getAddressFromCoords(loc.latitude, loc.longitude).then(res => {
       setStartLoc(prev => prev ? { ...prev, address: res.address, mapsUrl: res.mapsUrl } : null);
-      setIsFetchingStartAddr(false);
-    }).catch(() => setIsFetchingStartAddr(false));
+    }).finally(() => setIsFetchingStartAddr(false));
   };
 
   const handleForceStart = () => {
@@ -165,7 +163,7 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
   };
 
   const handleAutoStop = (loc: TripLocation) => {
-    if (currentDistance < 0.02 && !isManualStart) { // 降低棄捨門檻至 20 米
+    if (currentDistance < 0.02 && !isManualStart) {
       resetTracker();
       return;
     }
@@ -174,8 +172,7 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
     setIsFetchingEndAddr(true);
     getAddressFromCoords(loc.latitude, loc.longitude).then(res => {
       setEndLoc(prev => prev ? { ...prev, address: res.address, mapsUrl: res.mapsUrl } : null);
-      setIsFetchingEndAddr(false);
-    }).catch(() => setIsFetchingEndAddr(false));
+    }).finally(() => setIsFetchingEndAddr(false));
   };
 
   const resetTracker = () => {
@@ -221,61 +218,61 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
 
   return (
     <div className="p-4 sm:p-6 max-w-lg mx-auto space-y-6 pb-24">
-      <div className="bg-slate-900 rounded-2xl p-4 text-white shadow-lg border border-slate-700 flex items-start gap-4">
+      <div className="bg-slate-900 dark:bg-slate-900 rounded-2xl p-4 text-white shadow-lg border border-slate-700 flex items-start gap-4">
         <div className="bg-blue-500 p-2 rounded-lg shrink-0">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
         </div>
         <div>
-          <h4 className="font-bold text-xs">加拿大行車監控模式</h4>
-          <p className="text-[10px] text-slate-400 mt-0.5">時速達 5km/h 自動記錄，靜止滿 2 分鐘（或手動結束）才會結算。</p>
+          <h4 className="font-bold text-xs">智能監控模式</h4>
+          <p className="text-[10px] text-slate-400 mt-0.5">時速達 5km/h 自動記錄，靜止滿 2 分鐘或手動按鈕結算。</p>
         </div>
       </div>
 
       {!showSaveForm ? (
-        <div className="bg-white rounded-3xl p-8 shadow-xl border border-slate-100 flex flex-col items-center text-center">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-xl border border-slate-100 dark:border-slate-800 flex flex-col items-center text-center">
           <div className="mb-6">
-            <h3 className="text-slate-400 font-bold mb-1 uppercase tracking-widest text-[10px]">
+            <h3 className="text-slate-400 dark:text-slate-500 font-bold mb-1 uppercase tracking-widest text-[10px]">
               {status === 'IDLE' ? '📡 偵測中' : '🚗 記錄中'}
             </h3>
-            <div className="text-6xl font-black text-slate-900 tracking-tight">
+            <div className="text-6xl font-black text-slate-900 dark:text-white tracking-tight">
               {displayDistanceValue.toFixed(2)}
-              <span className="text-xl ml-1 font-normal text-slate-400">{preferredUnit === DistanceUnit.KM ? 'km' : 'mi'}</span>
+              <span className="text-xl ml-1 font-normal text-slate-400 dark:text-slate-500">{preferredUnit === DistanceUnit.KM ? 'km' : 'mi'}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4 w-full mb-8">
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-              <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">速度</p>
-              <p className="text-xl font-black text-slate-700">{Math.round(currentSpeed)} <span className="text-xs font-normal">km/h</span></p>
+            <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold mb-1">速度</p>
+              <p className="text-xl font-black text-slate-700 dark:text-slate-300">{Math.round(currentSpeed)} <span className="text-xs font-normal">km/h</span></p>
             </div>
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-              <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">時長</p>
-              <p className="text-xl font-mono font-bold text-slate-700">{formatDuration(displaySeconds)}</p>
+            <div className="bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase font-bold mb-1">時長</p>
+              <p className="text-xl font-mono font-bold text-slate-700 dark:text-slate-300">{formatDuration(displaySeconds)}</p>
             </div>
           </div>
 
           {status === 'IDLE' ? (
             <button onClick={handleForceStart} className="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold shadow-xl active:scale-95 transition-all">立即開始行程</button>
           ) : (
-            <button onClick={() => handleAutoStop(lastTrackedLoc || startLoc!)} className="w-full py-4 text-red-500 font-bold border-2 border-red-100 rounded-2xl active:bg-red-50 transition-all">結束行程</button>
+            <button onClick={() => handleAutoStop(lastTrackedLoc || startLoc!)} className="w-full py-4 text-red-500 font-bold border-2 border-red-100 dark:border-red-900/30 rounded-2xl active:bg-red-50 dark:active:bg-red-900/10 transition-all">結束行程</button>
           )}
         </div>
       ) : (
-        <div className="bg-white rounded-3xl p-8 shadow-xl border border-slate-100 space-y-6">
-          <h2 className="text-2xl font-bold text-slate-900">行程結算</h2>
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 shadow-xl border border-slate-100 dark:border-slate-800 space-y-6">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">行程結算</h2>
           
           <div className="space-y-3">
-            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">用途</label>
+            <label className="block text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">用途</label>
             <div className="flex gap-3">
               {(Object.values(TripType)).map(type => (
-                <button key={type} onClick={() => setTripType(type)} className={`flex-1 py-3 rounded-xl border-2 transition-all font-bold text-sm ${tripType === type ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-100 text-slate-400'}`}>{type === TripType.BUSINESS ? '💼 商業' : '🏠 私人'}</button>
+                <button key={type} onClick={() => setTripType(type)} className={`flex-1 py-3 rounded-xl border-2 transition-all font-bold text-sm ${tripType === type ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400' : 'border-slate-100 dark:border-slate-800 text-slate-400 dark:text-slate-600'}`}>{type === TripType.BUSINESS ? '💼 商業' : '🏠 私人'}</button>
               ))}
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest">備註</label>
-            <input type="text" placeholder="輸入地點或目的..." value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full p-4 rounded-xl border border-slate-100 text-sm bg-slate-50 focus:bg-white outline-none transition-all" />
+            <label className="block text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">備註</label>
+            <input type="text" placeholder="輸入目的地或事由..." value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full p-4 rounded-xl border border-slate-100 dark:border-slate-800 text-sm bg-slate-50 dark:bg-slate-800 dark:text-white focus:bg-white dark:focus:bg-slate-950 outline-none transition-all" />
           </div>
 
           <div className="bg-slate-900 rounded-2xl p-5 text-white">
@@ -287,7 +284,7 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
                <div className="flex gap-3">
                  <span className="text-blue-500 font-black shrink-0">起點</span>
                  <span className={`${isFetchingStartAddr ? 'animate-pulse text-slate-500' : 'text-slate-300'} break-all`}>
-                   {isFetchingStartAddr ? '正在查詢加拿大地圖...' : (startLoc?.address || '計算中...')}
+                   {isFetchingStartAddr ? '正在查詢地圖...' : (startLoc?.address || '計算中...')}
                  </span>
                </div>
                <div className="flex gap-3">
@@ -300,7 +297,7 @@ const Tracker: React.FC<TrackerProps> = ({ onSaveTrip, preferredUnit }) => {
           </div>
 
           <div className="flex gap-4">
-            <button onClick={() => { setShowSaveForm(false); resetTracker(); }} className="flex-1 text-slate-400 font-bold text-sm">捨棄</button>
+            <button onClick={() => { setShowSaveForm(false); resetTracker(); }} className="flex-1 text-slate-400 dark:text-slate-500 font-bold text-sm">捨棄</button>
             <button onClick={handleSave} className="flex-[2] py-4 bg-blue-600 text-white font-bold rounded-2xl shadow-lg active:scale-95 transition-all">儲存行程</button>
           </div>
         </div>

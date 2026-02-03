@@ -50,11 +50,9 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
 
   const handleRefreshClick = (trip: Trip) => {
     if (isRefreshingAddr) return;
-    
-    // 強制進入處理狀態
     setIsRefreshingAddr(true);
     
-    // 使用延遲確保 React 先完成「顯示處理中」的渲染，再開始耗時的 API 調用
+    // Force immediate UI update for loading state
     setTimeout(async () => {
       try {
         const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
@@ -81,106 +79,109 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
     }, 100);
   };
 
+  const formatTime = (ts: number) => {
+    return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  };
+
   return (
     <div className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 pb-24">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-900">歷史記錄</h2>
-        <div className="flex bg-slate-100 p-1 rounded-lg self-start">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Trip History</h2>
+        <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg self-start">
           {(['day', 'month', 'year'] as ViewMode[]).map((mode) => (
-            <button key={mode} onClick={() => setViewMode(mode)} className={`px-4 py-2 text-xs font-black uppercase rounded-md transition-all ${viewMode === mode ? 'bg-white shadow-sm text-blue-600' : 'text-slate-400'}`}>{mode === 'day' ? '日' : mode === 'month' ? '月' : '年'}</button>
+            <button key={mode} onClick={() => setViewMode(mode)} className={`px-4 py-2 text-xs font-black uppercase rounded-md transition-all ${viewMode === mode ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'}`}>{mode === 'day' ? 'Day' : mode === 'month' ? 'Month' : 'Year'}</button>
           ))}
         </div>
       </div>
 
-      <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 inline-block">
-        <input type={viewMode === 'day' ? 'date' : viewMode === 'month' ? 'month' : 'number'} value={viewMode === 'year' ? selectedDate.split('-')[0] : selectedDate.slice(0, viewMode === 'month' ? 7 : 10)} onChange={(e) => { if (e.target.value) setSelectedDate(viewMode === 'year' ? `${e.target.value}-01-01` : viewMode === 'month' ? `${e.target.value}-01` : e.target.value); }} className="p-2 bg-transparent font-bold text-slate-700 outline-none" />
+      <div className="bg-white dark:bg-slate-900 p-2 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-800 inline-block">
+        <input 
+          type={viewMode === 'day' ? 'date' : viewMode === 'month' ? 'month' : 'number'} 
+          value={viewMode === 'year' ? selectedDate.split('-')[0] : selectedDate.slice(0, viewMode === 'month' ? 7 : 10)} 
+          onChange={(e) => { if (e.target.value) setSelectedDate(viewMode === 'year' ? `${e.target.value}-01-01` : viewMode === 'month' ? `${e.target.value}-01` : e.target.value); }} 
+          className="p-2 bg-transparent font-bold text-slate-700 dark:text-slate-300 outline-none" 
+        />
       </div>
 
       <div className="space-y-4">
         {filteredTrips.length === 0 ? (
-          <div className="text-center py-24 text-slate-300 bg-white rounded-3xl border-2 border-dashed border-slate-50">📭 沒有找到行程記錄</div>
+          <div className="text-center py-24 text-slate-300 dark:text-slate-700 bg-white dark:bg-slate-900 rounded-3xl border-2 border-dashed border-slate-100 dark:border-slate-800">📭 No records found</div>
         ) : (
           filteredTrips.map((trip) => (
-            <div key={trip.id} className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 relative overflow-hidden">
+            <div key={trip.id} className="bg-white dark:bg-slate-900 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-800 relative overflow-hidden">
               <div className={`absolute top-0 left-0 w-1.5 h-full ${trip.type === TripType.BUSINESS ? 'bg-blue-500' : 'bg-green-500'}`}></div>
               
               <div className="flex justify-between items-start mb-6">
                 <div className="flex items-center gap-2">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${trip.type === TripType.BUSINESS ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>{trip.type}</span>
-                  <span className="text-[10px] font-bold text-slate-400">{new Date(trip.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${trip.type === TripType.BUSINESS ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' : 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'}`}>{trip.type}</span>
+                  <span className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500">
+                    {formatTime(trip.startTime)} — {formatTime(trip.endTime)}
+                  </span>
                 </div>
                 <div className="flex gap-2">
                   {editingTripId !== trip.id && (
-                    <button onClick={() => startEditing(trip)} className="text-slate-300 hover:text-blue-500 transition-colors">
+                    <button onClick={() => startEditing(trip)} className="text-slate-300 dark:text-slate-600 hover:text-blue-500 transition-colors">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                       </svg>
                     </button>
                   )}
-                  <button onClick={() => onDeleteTrip(trip.id)} className="text-slate-200 hover:text-red-500 transition-colors">
+                  <button onClick={() => onDeleteTrip(trip.id)} className="text-slate-200 dark:text-slate-700 hover:text-red-500 transition-colors">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" /></svg>
                   </button>
                 </div>
               </div>
 
               {editingTripId === trip.id ? (
-                <div className="space-y-4 bg-slate-50 p-4 rounded-2xl">
+                <div className="space-y-4 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                   <div className="grid grid-cols-2 gap-3">
-                    <button onClick={() => setEditType(TripType.BUSINESS)} className={`py-2 rounded-xl text-xs font-bold border-2 transition-all ${editType === TripType.BUSINESS ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-slate-200 text-slate-400 bg-white'}`}>💼 商業</button>
-                    <button onClick={() => setEditType(TripType.PRIVATE)} className={`py-2 rounded-xl text-xs font-bold border-2 transition-all ${editType === TripType.PRIVATE ? 'border-green-600 bg-green-50 text-green-600' : 'border-slate-200 text-slate-400 bg-white'}`}>🏠 私人</button>
+                    <button onClick={() => setEditType(TripType.BUSINESS)} className={`py-2 rounded-xl text-xs font-bold border-2 transition-all ${editType === TripType.BUSINESS ? 'border-blue-600 bg-blue-50 dark:bg-blue-900/40 text-blue-600' : 'border-slate-200 dark:border-slate-700 text-slate-400 bg-white dark:bg-slate-900'}`}>💼 Business</button>
+                    <button onClick={() => setEditType(TripType.PRIVATE)} className={`py-2 rounded-xl text-xs font-bold border-2 transition-all ${editType === TripType.PRIVATE ? 'border-green-600 bg-green-50 dark:bg-green-900/40 text-green-600' : 'border-slate-200 dark:border-slate-700 text-slate-400 bg-white dark:bg-slate-900'}`}>🏠 Private</button>
                   </div>
-                  <input type="text" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="修改備註..." className="w-full p-3 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 ring-blue-100" />
+                  <input type="text" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Edit notes..." className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 text-sm outline-none focus:ring-2 ring-blue-100 dark:bg-slate-900 dark:text-white" />
                   
                   <div className="flex gap-2">
                     <button 
                       type="button"
                       onClick={() => handleRefreshClick(trip)} 
                       disabled={isRefreshingAddr} 
-                      className={`flex-1 text-[10px] font-bold rounded-lg py-3 transition-all shadow-sm border ${isRefreshingAddr ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white text-slate-700 border-slate-200 active:bg-slate-50'}`}
+                      className={`flex-1 text-[10px] font-bold rounded-lg py-3 transition-all shadow-sm border ${isRefreshingAddr ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 active:bg-slate-50'}`}
                     >
-                      {isRefreshingAddr ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <svg className="animate-spin h-3 w-3 text-blue-500" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          地址查詢中...
-                        </span>
-                      ) : '📍 重新查詢地址'}
+                      {isRefreshingAddr ? 'Refreshing Address...' : '📍 Refresh Address'}
                     </button>
-                    <button onClick={() => setEditingTripId(null)} className="px-4 py-2 text-xs font-bold text-slate-400">取消</button>
+                    <button onClick={() => setEditingTripId(null)} className="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button>
                     <button onClick={() => {
                       onUpdateTrip({...trip, notes: editNotes, type: editType});
                       setEditingTripId(null);
-                    }} className="px-6 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg">儲存</button>
+                    }} className="px-6 py-2 text-xs font-bold bg-blue-600 text-white rounded-lg">Save</button>
                   </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-4">
                     <div onClick={() => openInMaps(trip.startLocation.latitude, trip.startLocation.longitude, trip.startLocation.mapsUrl)} className="flex items-start gap-3 cursor-pointer group">
-                      <div className="mt-1 w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 ring-4 ring-blue-50 group-hover:ring-blue-100 transition-all"></div>
-                      <div>
-                        <p className="text-[10px] text-slate-400 font-black uppercase mb-0.5">出發點</p>
-                        <p className="text-xs text-slate-700 font-medium leading-relaxed group-hover:text-blue-600 underline decoration-slate-200">{trip.startLocation.address || '地址獲取中...'}</p>
+                      <div className="mt-1 w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 ring-4 ring-blue-50 dark:ring-blue-900/20 group-hover:ring-blue-100 transition-all"></div>
+                      <div className="overflow-hidden">
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase mb-0.5">Start</p>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed group-hover:text-blue-600 transition-colors truncate">{trip.startLocation.address || 'Address pending...'}</p>
                       </div>
                     </div>
                     <div onClick={() => openInMaps(trip.endLocation.latitude, trip.endLocation.longitude, trip.endLocation.mapsUrl)} className="flex items-start gap-3 cursor-pointer group">
-                      <div className="mt-1 w-2.5 h-2.5 rounded-full bg-red-500 shrink-0 ring-4 ring-red-50 group-hover:ring-red-100 transition-all"></div>
-                      <div>
-                        <p className="text-[10px] text-slate-400 font-black uppercase mb-0.5">目的地</p>
-                        <p className="text-xs text-slate-700 font-medium leading-relaxed group-hover:text-red-600 underline decoration-slate-200">{trip.endLocation.address || '地址獲取中...'}</p>
+                      <div className="mt-1 w-2.5 h-2.5 rounded-full bg-red-500 shrink-0 ring-4 ring-red-50 dark:ring-red-900/20 group-hover:ring-red-100 transition-all"></div>
+                      <div className="overflow-hidden">
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase mb-0.5">End</p>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed group-hover:text-red-600 transition-colors truncate">{trip.endLocation.address || 'Address pending...'}</p>
                       </div>
                     </div>
                   </div>
                   <div className="text-right flex flex-col justify-end">
-                    <p className="text-3xl font-black text-slate-900">{getDisplayDistance(trip.distance).toFixed(2)} <span className="text-xs font-normal text-slate-400">{preferredUnit === DistanceUnit.KM ? 'km' : 'mi'}</span></p>
-                    <p className="text-[10px] font-mono font-bold text-slate-400">{formatDuration(trip.durationSeconds)}</p>
+                    <p className="text-3xl font-black text-slate-900 dark:text-white">{getDisplayDistance(trip.distance).toFixed(2)} <span className="text-xs font-normal text-slate-400">{preferredUnit === DistanceUnit.KM ? 'km' : 'mi'}</span></p>
+                    <p className="text-[10px] font-mono font-bold text-slate-400 dark:text-slate-500">{formatDuration(trip.durationSeconds)}</p>
                   </div>
                 </div>
               )}
               
-              {!editingTripId && trip.notes && <div className="mt-4 pt-4 border-t border-slate-50 text-[11px] text-slate-500 bg-slate-50/50 p-2 rounded-xl italic">"{trip.notes}"</div>}
+              {!editingTripId && trip.notes && <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/30 p-2 rounded-xl italic">"{trip.notes}"</div>}
             </div>
           ))
         )}

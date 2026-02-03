@@ -4,7 +4,7 @@ import Tracker from './components/Tracker.tsx';
 import History from './components/History.tsx';
 import Summary from './components/Summary.tsx';
 import Settings from './components/Settings.tsx';
-import { Trip, DistanceUnit, UserSettings } from './types.ts';
+import { Trip, DistanceUnit, UserSettings, AppTheme } from './types.ts';
 
 const STORAGE_KEY = 'drive_log_trips';
 const SETTINGS_KEY = 'drive_log_settings';
@@ -13,6 +13,7 @@ const App: React.FC = () => {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [settings, setSettings] = useState<UserSettings>({
     preferredUnit: DistanceUnit.KM,
+    theme: AppTheme.LIGHT,
   });
   const [activeTab, setActiveTab] = useState<'track' | 'history' | 'summary' | 'settings'>('track');
 
@@ -29,12 +30,22 @@ const App: React.FC = () => {
     }
     if (savedSettings) {
       try {
-        setSettings(JSON.parse(savedSettings));
+        const parsed = JSON.parse(savedSettings);
+        setSettings(prev => ({ ...prev, ...parsed }));
       } catch (e) {
         console.error("Failed to parse settings", e);
       }
     }
   }, []);
+
+  // 當主題改變時，同步更新 html 的 class
+  useEffect(() => {
+    if (settings.theme === AppTheme.DARK) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [settings.theme]);
 
   const handleSaveTrip = (trip: Trip) => {
     const updatedTrips = [trip, ...trips];
@@ -63,11 +74,11 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen pb-24 flex flex-col">
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-10 px-6 py-4">
+    <div className="min-h-screen pb-24 flex flex-col bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+      <header className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 sticky top-0 z-10 px-6 py-4">
         <div className="max-w-5xl mx-auto flex justify-between items-center">
-          <h1 className="text-xl font-black text-blue-600 tracking-tight">DRIVE<span className="text-slate-900">LOG</span></h1>
-          <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded">
+          <h1 className="text-xl font-black text-blue-600 tracking-tight">DRIVE<span className="text-slate-900 dark:text-white">LOG</span></h1>
+          <div className="text-xs font-semibold text-slate-400 uppercase tracking-widest bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded">
             My Driving Tracker
           </div>
         </div>
@@ -93,7 +104,7 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-slate-100 flex justify-around items-center p-2 pb-6 shadow-2xl">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg border-t border-slate-100 dark:border-slate-800 flex justify-around items-center p-2 pb-6 shadow-2xl z-20">
         <NavItem 
           active={activeTab === 'track'} 
           onClick={() => setActiveTab('track')}
@@ -134,10 +145,10 @@ const NavItem: React.FC<NavItemProps> = ({ active, onClick, label, icon }) => (
   <button 
     onClick={onClick}
     className={`flex flex-col items-center p-2 rounded-xl transition-all ${
-      active ? 'text-blue-600' : 'text-slate-400 hover:text-slate-600'
+      active ? 'text-blue-600' : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
     }`}
   >
-    <div className={`p-2 rounded-xl mb-1 ${active ? 'bg-blue-50' : 'bg-transparent'}`}>
+    <div className={`p-2 rounded-xl mb-1 ${active ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-transparent'}`}>
       {icon}
     </div>
     <span className="text-[10px] font-bold uppercase tracking-wider">{label}</span>

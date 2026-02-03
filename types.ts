@@ -9,6 +9,11 @@ export enum DistanceUnit {
   MILES = '英里 (miles)'
 }
 
+export enum AppTheme {
+  LIGHT = 'light',
+  DARK = 'dark'
+}
+
 export interface TripLocation {
   latitude: number;
   longitude: number;
@@ -31,4 +36,5 @@ export interface Trip {
 
 export interface UserSettings {
   preferredUnit: DistanceUnit;
+  theme: AppTheme;
 }
