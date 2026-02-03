@@ -53,11 +53,11 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
     setIsRefreshingAddr(true);
     
     try {
-      // Fetch both addresses
+      // Fetch addresses sequentially to avoid potential rate limiting or race issues
       const startRes = await getAddressFromCoords(trip.startLocation.latitude, trip.startLocation.longitude);
       const endRes = await getAddressFromCoords(trip.endLocation.latitude, trip.endLocation.longitude);
       
-      onUpdateTrip({
+      const updatedTrip = {
         ...trip,
         startLocation: { 
           ...trip.startLocation, 
@@ -69,9 +69,15 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
           address: endRes.address, 
           mapsUrl: endRes.mapsUrl || trip.endLocation.mapsUrl 
         }
-      });
+      };
+
+      onUpdateTrip(updatedTrip);
+      
+      // If we are currently editing this trip, we should still keep the edit mode open
+      // but the underlying data is now updated.
     } catch (e) {
-      console.error("Refresh failed:", e);
+      console.error("Manual refresh address failed:", e);
+      alert("Failed to update address. Please check your internet connection.");
     } finally {
       setIsRefreshingAddr(false);
     }
@@ -145,7 +151,7 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
                       disabled={isRefreshingAddr} 
                       className={`flex-1 text-[10px] font-bold rounded-lg py-3 transition-all shadow-sm border ${isRefreshingAddr ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 active:bg-slate-50'}`}
                     >
-                      {isRefreshingAddr ? 'Refreshing...' : '📍 Refresh Address'}
+                      {isRefreshingAddr ? 'UPDATING...' : '📍 REFRESH ADDRESS'}
                     </button>
                     <button onClick={() => setEditingTripId(null)} className="px-4 py-2 text-xs font-bold text-slate-400">Cancel</button>
                     <button onClick={() => {
@@ -161,14 +167,18 @@ const History: React.FC<HistoryProps> = ({ trips, preferredUnit, onDeleteTrip, o
                       <div className="mt-1 w-2.5 h-2.5 rounded-full bg-blue-500 shrink-0 ring-4 ring-blue-50 dark:ring-blue-900/20 group-hover:ring-blue-100 transition-all"></div>
                       <div className="flex-grow">
                         <p className="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase mb-0.5">Start</p>
-                        <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed group-hover:text-blue-600 transition-colors">{trip.startLocation.address || 'Fetching English address...'}</p>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed group-hover:text-blue-600 transition-colors">
+                          {trip.startLocation.address || 'Address pending...'}
+                        </p>
                       </div>
                     </div>
                     <div onClick={() => openInMaps(trip.endLocation.latitude, trip.endLocation.longitude, trip.endLocation.mapsUrl)} className="flex items-start gap-3 cursor-pointer group">
                       <div className="mt-1 w-2.5 h-2.5 rounded-full bg-red-500 shrink-0 ring-4 ring-red-50 dark:ring-red-900/20 group-hover:ring-red-100 transition-all"></div>
                       <div className="flex-grow">
                         <p className="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase mb-0.5">End</p>
-                        <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed group-hover:text-red-600 transition-colors">{trip.endLocation.address || 'Fetching English address...'}</p>
+                        <p className="text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed group-hover:text-red-600 transition-colors">
+                          {trip.endLocation.address || 'Address pending...'}
+                        </p>
                       </div>
                     </div>
                   </div>

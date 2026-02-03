@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 
 /**
  * Converts coordinates to a precise English address.
- * Optimized to prioritize metadata from Google Maps tool.
+ * Optimized for Gemini 2.5 Flash + Google Maps Grounding.
  */
 export async function getAddressFromCoords(lat: number, lng: number): Promise<{ address: string; mapsUrl?: string }> {
   try {
@@ -14,12 +14,12 @@ export async function getAddressFromCoords(lat: number, lng: number): Promise<{ 
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // Using a more descriptive prompt to encourage the model to use its tools effectively
+    // Improved prompt to handle edge cases where exact street addresses aren't available
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
-      contents: `Identify the specific English street address or place name at these coordinates: ${lat}, ${lng}. 
-      Use the Google Maps tool to be precise. 
-      I need the full English address including street name and area.`,
+      contents: `Provide the precise English address or descriptive location name for coordinates (${lat}, ${lng}). 
+      If a specific street address is unavailable, name the nearest landmark or district in English. 
+      Output ONLY the location string. No coordinates in the output.`,
       config: {
         tools: [{ googleMaps: {} }],
         toolConfig: {
@@ -37,15 +37,15 @@ export async function getAddressFromCoords(lat: number, lng: number): Promise<{ 
     const groundingMetadata = candidate?.groundingMetadata;
     const groundingChunks = groundingMetadata?.groundingChunks || [];
     
-    // 1. Direct metadata extraction - often more reliable than the text response
-    let mapsTitle = "";
+    // 1. Try to extract the most descriptive name from Maps Grounding Chunks
+    let mapsLabel = "";
     let mapsUrl = "";
 
-    // Iterate through all chunks to find the best map data
     for (const chunk of groundingChunks) {
       if (chunk.maps) {
-        if (chunk.maps.title && chunk.maps.title.length > mapsTitle.length) {
-          mapsTitle = chunk.maps.title;
+        // Prefer the most descriptive title available in chunks
+        if (chunk.maps.title && chunk.maps.title.length > mapsLabel.length) {
+          mapsLabel = chunk.maps.title;
         }
         if (chunk.maps.uri) {
           mapsUrl = chunk.maps.uri;
@@ -53,40 +53,49 @@ export async function getAddressFromCoords(lat: number, lng: number): Promise<{ 
       }
     }
 
-    // 2. Clean the text response
+    // 2. Extract and clean the textual response
     let textOutput = response.text?.trim()
       .replace(/[\*\#\`]/g, "")
       .replace(/\n/g, ", ")
-      .split("Coordinates:")[0] // Remove trailing coordinate mentions
       .trim() || "";
 
     // 3. Selection Logic:
-    // If mapsTitle exists and looks like a real place (not just coords), prefer it.
-    // If textOutput is just repeating the coordinates, use mapsTitle.
-    const textIsJustCoords = /^[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)$/.test(textOutput);
+    // We want to avoid returning raw coordinates (e.g. "22.3, 114.1")
+    const isCoordinateOnly = /^-?\d+\.\d+,\s*-?\d+\.\d+$/.test(textOutput);
     
-    let finalAddress = textOutput;
+    let finalAddress = "";
 
-    // Prioritize mapsTitle if text is empty, too short, or just coords
-    if (mapsTitle && (finalAddress.length < 10 || textIsJustCoords)) {
-      finalAddress = mapsTitle;
+    // Priority 1: Use the maps label if it exists and text is coordinate-like or too short
+    if (mapsLabel && (isCoordinateOnly || textOutput.length < 5)) {
+      finalAddress = mapsLabel;
+    } 
+    // Priority 2: Use the model's text output if it's not just coordinates
+    else if (textOutput && !isCoordinateOnly) {
+      finalAddress = textOutput;
+    }
+    // Priority 3: Use mapsLabel as a last-resort descriptive name
+    else if (mapsLabel) {
+      finalAddress = mapsLabel;
     }
 
-    // 4. Final Fallback if everything failed
-    if (!finalAddress || finalAddress.length < 5 || textIsJustCoords) {
-      finalAddress = `Location near ${lat.toFixed(5)}, ${lng.toFixed(5)}`;
-    }
-
-    // Ensure it doesn't contain Chinese characters (as per user request "English Only")
-    // Simple filter to strip common Chinese ranges if model ignores prompt
+    // 4. Final cleaning and English check
+    // Remove any remaining Chinese characters as per user preference
     finalAddress = finalAddress.replace(/[\u4e00-\u9fa5]/g, '').replace(/,\s*,/g, ',').trim();
+    
+    // Cleanup leading/trailing commas
+    finalAddress = finalAddress.replace(/^,|,$/g, '').trim();
+
+    // 5. Hard Fallback
+    if (!finalAddress || finalAddress.length < 3) {
+      finalAddress = `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
+    }
 
     return { 
-      address: finalAddress || `${lat.toFixed(5)}, ${lng.toFixed(5)}`, 
+      address: finalAddress, 
       mapsUrl: mapsUrl 
     };
   } catch (error) {
-    console.error("Gemini Geocoding Error:", error);
+    console.error("Geocoding Service Error:", error);
     return { address: `${lat.toFixed(5)}, ${lng.toFixed(5)}` };
   }
 }
